@@ -7,11 +7,11 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 # === 关键词列表 ===
 TRIGGER_WORDS = ["难过", "开心", "无聊", "失眠", "难受"]
 
-
 @register(
     name="deepseek_ai",
     author="Qing",
-    version="1.0.0"
+    version="1.0.0",
+    desc="对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
 )
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
