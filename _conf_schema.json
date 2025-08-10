@@ -14,8 +14,8 @@
   "api_key": {
     "description": "DeepSeek API 的访问密钥",
     "type": "string",
-    "hint": "在 DeepSeek 平台申请的 API Key",
-    "default": ""
+    "hint": "在 DeepSeek 平台申请的 API Key，示例：sk-xxxx...",
+    "default": "sk-你的测试APIKey"
   },
   "model": {
     "description": "DeepSeek 模型选择",
@@ -27,18 +27,18 @@
     "description": "人格设定",
     "type": "string",
     "hint": "会作为 system 提示词传入 DeepSeek，例如“你是一个温柔的暖心机器人”",
-    "default": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人"
+    "default": "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
   },
   "timeout": {
     "description": "API 调用的超时时间（秒）",
     "type": "int",
     "hint": "请求超时时间，建议 10~30 秒",
-    "default": 15
+    "default": 20
   },
   "trigger_keywords": {
     "description": "群聊触发关键词列表",
     "type": "list",
     "hint": "当消息中包含任意关键词时触发自动回复",
-    "default": ["机器人", "帮我", "难过"]
+    "default": ["机器人", "帮我", "难过", "你好", "在吗"]
   }
 }
