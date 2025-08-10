@@ -1,14 +1,13 @@
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
-from astrbot.api.event import filter
-from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
+from astrbot.core.star.filter import event_message_type, EventMessageType
 from openai import OpenAI
 
 @register(
     name="deepseek_chat",
     author="YourName",
     description="DeepSeek 对话插件（可设定人格，支持主动回复）",
-    version="1.0.0"
+    version="1.0.1"
 )
 class DeepSeekChat(Star):
     def __init__(self, context: Context, config):
@@ -33,13 +32,15 @@ class DeepSeekChat(Star):
         if not self.enabled:
             return
 
-        text = str(event.message_obj)  # 获取消息文本
-        if not any(keyword in text for keyword in self.trigger_keywords):
-            return  # 没有触发关键词
+        text = str(event.message_obj)
+        matched_keywords = [kw for kw in self.trigger_keywords if kw in text]
+
+        if not matched_keywords:
+            return
+
+        logger.info(f"[DeepSeek] 命中关键词: {matched_keywords} | 消息: {text}")
 
         try:
-            logger.info(f"[DeepSeek] 收到触发关键词消息: {text}")
-
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
