@@ -19,7 +19,7 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        # 配置
+        # 配置（API Key 可以直接写死）
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com")
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
@@ -29,11 +29,9 @@ class DeepSeekAI(Star):
             "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
         )
         self.timeout = int(self.config.get("timeout", 20))
-        self.trigger_words = self.config.get(
-            "trigger_keywords", ["机器人", "帮我", "难过"]
-        )
+        self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
-        # DeepSeek API 客户端
+        # 初始化 API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
@@ -48,17 +46,18 @@ class DeepSeekAI(Star):
         if not self.enabled:
             return
 
-        # 消息文本
         user_message = (event.message_str or "").strip()
 
-        # 取发送者昵称（兼容处理）
+        # 获取发送者昵称（兼容不同平台）
         sender_name = None
-        if hasattr(event, "sender") and event.sender:
+        if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
+        if not sender_name and hasattr(event, "user_id"):
+            sender_name = str(event.user_id)
         if not sender_name:
-            sender_name = str(getattr(event, "user_id", "未知用户"))
+            sender_name = "未知用户"
 
-        # 检查关键词
+        # 检查是否命中关键词
         hit_words = [w for w in self.trigger_words if w in user_message]
         if not hit_words:
             return
@@ -66,7 +65,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            # 调用 API（放到线程防止阻塞）
+            # 调用 API（线程防阻塞）
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -77,9 +76,20 @@ class DeepSeekAI(Star):
                 stream=False
             )
 
-            reply_text = response.choices[0].message.content
+            # 兼容解析不同返回格式
+            reply_text = None
+            try:
+                reply_text = response.choices[0].message.content
+            except AttributeError:
+                choice = response.choices[0]
+                if hasattr(choice, "text"):
+                    reply_text = choice.text
+                else:
+                    reply_text = str(choice)
+
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
-            await event.send(reply_text)
+            if reply_text:
+                await event.send(reply_text)
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
