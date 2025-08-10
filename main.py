@@ -9,14 +9,16 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.0.0"
+    "v1.1.0"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
-        self.api_url = config.get("api_url", "https://api.deepseek.com/v1/chat/completions")
+        # 基础 API 地址（不带 /v1/chat/completions）
+        self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
+        self.model = config.get("model", "deepseek-chat")  # 新增模型选择
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
@@ -54,21 +56,26 @@ class DeepSeekPlugin(Star):
 
     async def get_deepseek_reply(self, user_input: str) -> str:
         """调用 DeepSeek API 获取回复"""
+        endpoint = f"{self.api_url.rstrip('/')}/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "deepseek-chat",
+            "model": self.model,
             "messages": [
                 {"role": "system", "content": self.persona},
                 {"role": "user", "content": user_input}
-            ]
+            ],
+            "stream": False
         }
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
-                async with session.post(self.api_url, headers=headers, json=payload) as resp:
+                async with session.post(endpoint, headers=headers, json=payload) as resp:
                     data = await resp.json()
+                    if resp.status != 200:
+                        logger.error(f"[DeepSeek] API 错误 {resp.status}: {data}")
+                        return ""
                     if "choices" in data and data["choices"]:
                         return data["choices"][0]["message"]["content"].strip()
                     else:
