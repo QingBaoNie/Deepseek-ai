@@ -1,8 +1,8 @@
 import aiohttp
-import asyncio
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
 
 
 @register(
@@ -20,38 +20,34 @@ class DeepSeekPlugin(Star):
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
-
+        self.trigger_keywords = config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
     async def initialize(self):
         logger.info("[DeepSeek] 插件已初始化")
-    
+
     @filter.command("chat")
     async def chat_command(self, event: AstrMessageEvent):
         """与 DeepSeek 对话"""
         if not self.enabled:
             yield event.plain_result("❌ DeepSeek 对话功能已关闭")
             return
-        
+
         user_input = event.message_str.strip()
         if not user_input:
             yield event.plain_result("请输入内容，例如：/chat 今天天气怎么样？")
             return
 
         reply = await self.get_deepseek_reply(user_input)
-        if reply:
-            yield event.plain_result(reply)
-        else:
-            yield event.plain_result("⚠️ 对话失败，请稍后再试")
+        yield event.plain_result(reply or "⚠️ 对话失败，请稍后再试")
 
-    @filter.event_message_type("group_message")  # 群聊内的被动回复
+    @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
-        """在群里触发被动对话"""
+        """群聊内被动对话"""
         if not self.enabled:
             return
 
         text = event.message_str.strip()
-        # 简单触发条件：被 @ 或包含关键字
-        if event.is_at_me() or "机器人" in text:
+        if event.is_at_me() or any(kw in text for kw in self.trigger_keywords):
             reply = await self.get_deepseek_reply(text)
             if reply:
                 yield event.plain_result(reply)
@@ -73,7 +69,11 @@ class DeepSeekPlugin(Star):
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
                 async with session.post(self.api_url, headers=headers, json=payload) as resp:
                     data = await resp.json()
-                    return data["choices"][0]["message"]["content"].strip()
+                    if "choices" in data and data["choices"]:
+                        return data["choices"][0]["message"]["content"].strip()
+                    else:
+                        logger.error(f"[DeepSeek] API 响应异常: {data}")
+                        return ""
         except Exception as e:
             logger.error(f"[DeepSeek] API 调用失败: {e}")
             return ""
