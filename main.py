@@ -1,11 +1,12 @@
 import asyncio
-import json
 from openai import OpenAI
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.message.chain import MessageChain
+from astrbot.core.message.text import Plain
 
 
 @register(
@@ -20,6 +21,7 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
+        # 配置
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
@@ -31,10 +33,13 @@ class DeepSeekAI(Star):
         self.timeout = int(self.config.get("timeout", 20))
         self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
+        # DeepSeek API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
-        logger.info(f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}")
+        logger.info(
+            f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}"
+        )
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
@@ -43,6 +48,7 @@ class DeepSeekAI(Star):
 
         user_message = (event.message_str or "").strip()
 
+        # 发送者昵称
         sender_name = None
         if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
@@ -51,6 +57,7 @@ class DeepSeekAI(Star):
         if not sender_name:
             sender_name = "未知用户"
 
+        # 检查关键词
         hit_words = [w for w in self.trigger_words if w in user_message]
         if not hit_words:
             return
@@ -58,7 +65,8 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            raw_response = await asyncio.to_thread(
+            # 调用 API（线程防阻塞）
+            response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
                 messages=[
@@ -68,19 +76,13 @@ class DeepSeekAI(Star):
                 stream=False
             )
 
-            # 兼容 AstrBot hook 返回 str 的情况
-            if isinstance(raw_response, str):
-                raw_response = json.loads(raw_response)
-
+            # 解析回复
             reply_text = None
-            if isinstance(raw_response, dict):
-                reply_text = raw_response.get("choices", [{}])[0].get("message", {}).get("content")
-            else:
-                try:
-                    reply_text = raw_response.choices[0].message.content
-                except AttributeError:
-                    choice = raw_response.choices[0]
-                    reply_text = getattr(choice, "text", str(choice))
+            try:
+                reply_text = response.choices[0].message.content
+            except AttributeError:
+                choice = response.choices[0]
+                reply_text = getattr(choice, "text", str(choice))
 
             reply_text = (reply_text or "").strip()
             if not reply_text:
@@ -88,13 +90,16 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            await event.send(reply_text)
+            # 用 MessageChain 发送，避免 'str' object has no attribute 'chain' 错误
+            chain = MessageChain().append(Plain(reply_text))
+            await event.send(chain)
             event.mark_handled()
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
-                await event.send(f"[DeepSeek] 调用失败: {e}")
+                chain = MessageChain().append(Plain(f"[DeepSeek] 调用失败: {e}"))
+                await event.send(chain)
                 event.mark_handled()
             except:
                 pass
