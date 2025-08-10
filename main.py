@@ -2,7 +2,7 @@ import aiohttp
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
+from astrbot.core.star.filter.event_message_type import EventMessageType
 
 
 @register(
@@ -40,7 +40,7 @@ class DeepSeekPlugin(Star):
         reply = await self.get_deepseek_reply(user_input)
         yield event.plain_result(reply or "⚠️ 对话失败，请稍后再试")
 
-    @event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
         """群聊内被动对话"""
         if not self.enabled:
