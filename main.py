@@ -5,6 +5,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.platform.message.message_builder import MessageBuilder  # ★ 关键：使用消息构建器
 
 
 @register(
@@ -52,8 +53,7 @@ class DeepSeekAI(Star):
             sender_name = getattr(event.sender, "card", None) or getattr(event.sender, "nickname", None)
         if not sender_name and hasattr(event, "user_id"):
             sender_name = str(event.user_id)
-        if not sender_name:
-            sender_name = "未知用户"
+        sender_name = sender_name or "未知用户"
 
         # 检查关键词
         hit_words = [w for w in self.trigger_words if w in user_message]
@@ -63,7 +63,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            # 调用 API
+            # 调用 API（同步 SDK 放到线程池里）
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -71,11 +71,11 @@ class DeepSeekAI(Star):
                     {"role": "system", "content": self.persona},
                     {"role": "user", "content": user_message}
                 ],
-                stream=False
+                stream=False,
+                timeout=self.timeout
             )
 
             # 解析回复
-            reply_text = None
             try:
                 reply_text = response.choices[0].message.content
             except AttributeError:
@@ -88,14 +88,16 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 发送 CQ 消息链
-            await event.send([{"type": "text", "data": {"text": reply_text}}])
+            # ★ 用 MessageBuilder 组装平台消息对象（带 .chain）
+            msg = MessageBuilder().text(reply_text).build()
+            await event.send(msg)
             event.mark_handled()
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
-                await event.send([{"type": "text", "data": {"text": f"[DeepSeek] 调用失败: {e}"}}])
+                err_msg = MessageBuilder().text(f"[DeepSeek] 调用失败: {e}").build()
+                await event.send(err_msg)
                 event.mark_handled()
             except:
                 pass
