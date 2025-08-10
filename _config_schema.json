@@ -1,16 +1,32 @@
 {
-  "enabled": true,
-  "enabled:description": "是否启用 DeepSeek 对话插件（true 开启，false 关闭）",
-
-  "api_url": "https://api.deepseek.com/v1/chat/completions",
-  "api_url:description": "DeepSeek API 接口地址",
-
-  "api_key": "你的API密钥",
-  "api_key:description": "DeepSeek API 的访问密钥",
-
-  "persona": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人",
-  "persona:description": "人格设定，会作为 system 提示词传入 DeepSeek",
-
-  "timeout": 15,
-  "timeout:description": "API 调用的超时时间（秒）"
+  "enabled": {
+    "type": "boolean",
+    "default": true,
+    "description": "是否启用 DeepSeek 对话插件（true 开启，false 关闭）"
+  },
+  "api_url": {
+    "type": "string",
+    "default": "https://api.deepseek.com/v1/chat/completions",
+    "description": "DeepSeek API 接口地址"
+  },
+  "api_key": {
+    "type": "string",
+    "default": "",
+    "description": "DeepSeek API 的访问密钥"
+  },
+  "persona": {
+    "type": "string",
+    "default": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人",
+    "description": "人格设定，会作为 system 提示词传入 DeepSeek"
+  },
+  "timeout": {
+    "type": "number",
+    "default": 15,
+    "description": "API 调用的超时时间（秒）"
+  },
+  "trigger_keywords": {
+    "type": "array",
+    "default": ["机器人", "帮我", "难过"],
+    "description": "群聊触发关键词列表"
+  }
 }
