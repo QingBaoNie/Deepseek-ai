@@ -9,16 +9,15 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.1.1"
+    "v1.1.2"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
-        # 基础 API 地址（不带 /v1/chat/completions）
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
-        self.model = config.get("model", "deepseek-chat")  # 新增模型选择
+        self.model = config.get("model", "deepseek-chat")
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
@@ -29,7 +28,7 @@ class DeepSeekPlugin(Star):
 
     @filter.command("chat")
     async def chat_command(self, event: AstrMessageEvent):
-        """与 DeepSeek 对话"""
+        """主动指令对话"""
         if not self.enabled:
             yield event.plain_result("❌ DeepSeek 对话功能已关闭")
             return
@@ -44,7 +43,7 @@ class DeepSeekPlugin(Star):
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
-        """群聊内被动对话"""
+        """群聊内关键词 / @ 触发"""
         if not self.enabled:
             return
 
@@ -53,9 +52,10 @@ class DeepSeekPlugin(Star):
         # 检查是否 @ 了 bot（兼容 OneBot v11）
         is_at_bot = any(
             m.type == "at" and str(m.data.get("qq")) == str(event.self_id)
-            for m in event.message_obj
+            for m in event.message_obj.message_chain
         )
 
+        # 只在 @ 或关键词时响应
         if is_at_bot or any(kw in text for kw in self.trigger_keywords):
             reply = await self.get_deepseek_reply(text)
             if reply:
