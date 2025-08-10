@@ -22,7 +22,7 @@ class DeepSeekAI(Star):
 
         self.enabled = bool(self.config.get("enabled", True))
         self.base_url = self.config.get("api_url", "https://api.deepseek.com")
-        self.api_key = self.config.get("api_key", "sk-你的测试APIKey")
+        self.api_key = self.config.get("api_key", "sk-710a5dff40774cc79882ce6e3e204e4c")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
             "persona",
