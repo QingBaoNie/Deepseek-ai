@@ -1,7 +1,8 @@
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
-from astrbot.core.star.filter import event_message_type, EventMessageType
+from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
 from openai import OpenAI
+
 
 @register(
     name="deepseek_chat",
