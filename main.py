@@ -1,9 +1,9 @@
+import aiohttp
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from openai import OpenAI
-
 
 @register(
     name="deepseek_chat",
