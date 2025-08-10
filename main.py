@@ -1,4 +1,5 @@
 import asyncio
+from typing import List  # Py3.8 兼容
 from openai import OpenAI
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
@@ -11,7 +12,7 @@ from astrbot.core.platform.message.message_builder import MessageBuilder
 @register(
     "deepseek_chat",
     "Qing",
-    "1.0.1",
+    "1.0.2",
     "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
 )
 class DeepSeekAI(Star):
@@ -21,18 +22,16 @@ class DeepSeekAI(Star):
         self.config = config
 
         # === 基于 _conf_schema.json 的配置项 ===
-        self.enabled: bool = self.config.get("enabled", True)
-        # 注意：_conf_schema.json 默认是 https://api.deepseek.com（无 /v1）
-        # DeepSeek 的 OpenAI 兼容接口路径为 /chat/completions，通常无需在 base_url 追加 /v1
-        self.base_url: str = self.config.get("api_url", "https://api.deepseek.com")
-        self.api_key: str = self.config.get("api_key", "sk-你的测试APIKey")
-        self.model: str = self.config.get("model", "deepseek-chat")
-        self.persona: str = self.config.get(
+        self.enabled = bool(self.config.get("enabled", True))
+        self.base_url = self.config.get("api_url", "https://api.deepseek.com")  # 不带 /v1
+        self.api_key = self.config.get("api_key", "sk-你的测试APIKey")
+        self.model = self.config.get("model", "deepseek-chat")
+        self.persona = self.config.get(
             "persona",
             "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
         )
-        self.timeout: int = int(self.config.get("timeout", 20))
-        self.trigger_words: list[str] = self.config.get(
+        self.timeout = int(self.config.get("timeout", 20))
+        self.trigger_words: List[str] = self.config.get(
             "trigger_keywords",
             ["机器人", "帮我", "难过", "你好", "在吗"]
         )
@@ -79,23 +78,22 @@ class DeepSeekAI(Star):
                     {"role": "system", "content": self.persona},
                     {"role": "user", "content": user_message}
                 ],
-                stream=False,
-                timeout=self.timeout  # 若你们的 SDK 不支持该参数，可去掉
+                stream=False
+                # 部分 openai 兼容 SDK 可能不支持 timeout 这个参数，如不支持请移除
+                # , timeout=self.timeout
             )
 
             # 解析回复内容
-            reply_text = None
             try:
                 reply_text = response.choices[0].message.content
             except AttributeError:
-                # 兼容少数返回结构
                 choice = response.choices[0]
                 reply_text = getattr(choice, "text", str(choice))
 
             reply_text = (reply_text or "").strip() or "（DeepSeek 没有返回内容）"
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 使用 MessageBuilder 构建平台消息对象（带 .chain）
+            # 用 MessageBuilder 构建平台消息对象（具备 .chain）
             msg = MessageBuilder().text(reply_text).build()
             await event.send(msg)
             event.mark_handled()
