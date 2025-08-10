@@ -9,13 +9,12 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.2.1"
+    "v1.2.2"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
-        # 基础 API 地址（不带 /v1/chat/completions）
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
         self.model = config.get("model", "deepseek-chat")
@@ -29,34 +28,28 @@ class DeepSeekPlugin(Star):
 
     @filter.command("chat")
     async def chat_command(self, event: AstrMessageEvent):
-        """与 DeepSeek 对话"""
         if not self.enabled:
             yield event.plain_result("❌ DeepSeek 对话功能已关闭")
             return
-
         user_input = event.message_str.strip()
         if not user_input:
             yield event.plain_result("请输入内容，例如：/chat 今天天气怎么样？")
             return
-
         reply = await self.get_deepseek_reply(user_input)
         yield event.plain_result(reply or "⚠️ 对话失败，请稍后再试")
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
-        """群聊内被动对话（只响应关键词或被@）"""
         if not self.enabled:
             return
 
         text = event.message_str.strip()
-
-        # 检查是否 @ 了 bot（OneBot v11 消息段）
+        # OneBot v11 消息段遍历
+        segments = getattr(event.message_obj, "segments", [])
         is_at_bot = any(
             seg.type == "at" and str(seg.data.get("qq")) == str(event.self_id)
-            for seg in getattr(event.message_obj, "segments", [])
+            for seg in segments
         )
-
-        # 匹配关键词
         matched_keyword = next((kw for kw in self.trigger_keywords if kw in text), None)
 
         if is_at_bot or matched_keyword:
@@ -70,7 +63,6 @@ class DeepSeekPlugin(Star):
                 yield event.plain_result(reply)
 
     async def get_deepseek_reply(self, user_input: str) -> str:
-        """调用 DeepSeek API 获取回复"""
         endpoint = f"{self.api_url.rstrip('/')}/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -88,14 +80,16 @@ class DeepSeekPlugin(Star):
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
                 async with session.post(endpoint, headers=headers, json=payload) as resp:
                     data = await resp.json()
+                    if resp.status == 401:
+                        logger.error("[DeepSeek] API Key 无效，请检查配置")
+                        return "⚠️ API Key 无效，请检查插件配置"
                     if resp.status != 200:
                         logger.error(f"[DeepSeek] API 错误 {resp.status}: {data}")
                         return ""
                     if "choices" in data and data["choices"]:
                         return data["choices"][0]["message"]["content"].strip()
-                    else:
-                        logger.error(f"[DeepSeek] API 响应异常: {data}")
-                        return ""
+                    logger.error(f"[DeepSeek] API 响应异常: {data}")
+                    return ""
         except Exception as e:
             logger.error(f"[DeepSeek] API 调用失败: {e}")
             return ""
