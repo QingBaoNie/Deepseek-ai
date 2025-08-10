@@ -1,6 +1,7 @@
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
-from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
+from astrbot.api.event import filter
+from astrbot.core.star.filter.event_message_type import EventMessageType
 from openai import OpenAI
 
 
@@ -28,7 +29,7 @@ class DeepSeekChat(Star):
         masked_key = self.api_key[:8] + "****" + self.api_key[-4:] if self.api_key else "未设置"
         logger.info(f"[DeepSeek] 插件已初始化，BaseURL: {self.api_url}，Model: {self.model}，API Key: {masked_key}")
 
-    @event_message_type(EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event):
         if not self.enabled:
             return
