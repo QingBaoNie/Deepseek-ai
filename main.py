@@ -15,10 +15,9 @@ class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
-        # 基础 API 地址（不带 /v1/chat/completions）
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
-        self.model = config.get("model", "deepseek-chat")  # 模型选择
+        self.model = config.get("model", "deepseek-chat")
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
@@ -29,7 +28,7 @@ class DeepSeekPlugin(Star):
 
     @filter.command("chat")
     async def chat_command(self, event: AstrMessageEvent):
-        """与 DeepSeek 对话"""
+        """手动命令触发 DeepSeek 对话"""
         if not self.enabled:
             yield event.plain_result("❌ DeepSeek 对话功能已关闭")
             return
@@ -44,7 +43,7 @@ class DeepSeekPlugin(Star):
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
-        """群聊内被动对话（只响应关键词和被@的消息）"""
+        """群聊内关键词或被@触发的对话"""
         if not self.enabled:
             return
 
@@ -56,8 +55,14 @@ class DeepSeekPlugin(Star):
             for seg in getattr(event.message_obj, "segments", [])
         )
 
-        # 只响应关键词或被@的消息
-        if is_at_bot or any(kw in text for kw in self.trigger_keywords):
+        # 查找命中的关键词
+        matched_keyword = next((kw for kw in self.trigger_keywords if kw in text), None)
+
+        if is_at_bot or matched_keyword:
+            event.prevent_default()  # 阻止消息进入 AstrBot 默认 LLM 管道
+            if matched_keyword:
+                logger.info(f"[DeepSeek] 触发关键词: {matched_keyword}")
+
             reply = await self.get_deepseek_reply(text)
             if reply:
                 yield event.plain_result(reply)
