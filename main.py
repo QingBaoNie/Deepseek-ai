@@ -4,13 +4,13 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-
 @register(
-    "deepseek_ai",
+    "deepseek_chat",  # 改成和 metadata.yaml 的 name 一样
     "Qing",
     "1.0.0",
     "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
 )
+
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
