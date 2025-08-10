@@ -49,7 +49,7 @@ class DeepSeekAI(Star):
         # 发送者昵称
         sender_name = None
         if hasattr(event, "sender") and getattr(event, "sender", None):
-            sender_name = getattr(event.sender, "nickname", None)
+            sender_name = getattr(event.sender, "card", None) or getattr(event.sender, "nickname", None)
         if not sender_name and hasattr(event, "user_id"):
             sender_name = str(event.user_id)
         if not sender_name:
@@ -88,14 +88,14 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 直接发送纯文本
-            await event.send(reply_text)
+            # 发送 CQ 消息链
+            await event.send([{"type": "text", "data": {"text": reply_text}}])
             event.mark_handled()
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
-                await event.send(f"[DeepSeek] 调用失败: {e}")
+                await event.send([{"type": "text", "data": {"text": f"[DeepSeek] 调用失败: {e}"}}])
                 event.mark_handled()
             except:
                 pass
