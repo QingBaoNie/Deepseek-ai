@@ -40,43 +40,43 @@ class DeepSeekAI(Star):
             f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}"
         )
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
-    async def passive_reply(self, event: AiocqhttpMessageEvent):
-        """被动监听群消息并回复"""
-        if not self.enabled:
-            return
+@filter.event_message_type(EventMessageType.GROUP_MESSAGE)
+async def passive_reply(self, event: AiocqhttpMessageEvent):
+    if not self.enabled:
+        return
 
-        user_message = event.message_str.strip()
-        sender_name = event.sender.nickname or str(event.sender.user_id)
+    user_message = event.message_str.strip()
+    sender_info = await event.get_sender()  # 获取发送者信息
+    sender_name = sender_info.get("nickname") or str(event.user_id)
 
-        # 检查是否命中关键词
-        hit_words = [w for w in self.trigger_words if w in user_message]
-        if not hit_words:
-            return
+    # 检查关键词
+    hit_words = [w for w in self.trigger_words if w in user_message]
+    if not hit_words:
+        return
 
-        logger.info(
-            f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API"
+    self.context.logger.info(
+        f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API"
+    )
+
+    try:
+        # 调用 API
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create,
+            model=self.model,
+            messages=[
+                {"role": "system", "content": self.persona},
+                {"role": "user", "content": user_message}
+            ],
+            stream=False
         )
 
+        reply_text = response.choices[0].message.content
+        self.context.logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+        await event.send(reply_text)
+
+    except Exception as e:
+        self.context.logger.error(f"[DeepSeek] 调用 API 失败: {e}")
         try:
-            # 调用 API（在线程中执行，防止阻塞异步）
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.persona},
-                    {"role": "user", "content": user_message}
-                ],
-                stream=False
-            )
-
-            reply_text = response.choices[0].message.content
-            logger.info(f"[DeepSeek] 回复内容: {reply_text}")
-            await event.send(reply_text)
-
-        except Exception as e:
-            logger.error(f"[DeepSeek] 调用 API 失败: {e}")
-            try:
-                await event.send(f"[DeepSeek] 调用失败: {e}")
-            except:
-                pass
+            await event.send(f"[DeepSeek] 调用失败: {e}")
+        except:
+            pass
