@@ -1,5 +1,6 @@
 import asyncio
-from typing import List
+import time
+from typing import List, Dict
 from openai import OpenAI
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
@@ -11,8 +12,8 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 @register(
     "deepseek_chat",
     "Qing",
-    "1.0.7",
-    "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发引用回复（CQ码方式）"
+    "1.1.0",
+    "对接 DeepSeek API 的聊天插件，支持关键词、@触发和 5 秒跟进对话"
 )
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
@@ -26,7 +27,9 @@ class DeepSeekAI(Star):
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
             "persona",
-            "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
+            "你叫萌物，是一个温柔、贴心、懂得倾听的朋友。"
+            "你关心别人时会用简短而真诚的话，让人感到被理解和接纳。"
+            "你表达关怀的方式自然、不做作，就像一个关心朋友的普通人一样。"
         )
         self.trigger_words: List[str] = self.config.get(
             "trigger_keywords",
@@ -35,10 +38,11 @@ class DeepSeekAI(Star):
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
+        # 记录最近触发用户的时间
+        self.last_active: Dict[int, float] = {}
+
     def _get_message_id(self, event: AiocqhttpMessageEvent):
-        """
-        兼容不同版本 AstrBot / CQHTTP 的 message_id 获取
-        """
+        """兼容不同版本 AstrBot / CQHTTP 的 message_id 获取"""
         if hasattr(event, "raw_event") and "message_id" in event.raw_event:
             return event.raw_event["message_id"]
         elif hasattr(event, "message") and hasattr(event.message, "message_id"):
@@ -46,6 +50,16 @@ class DeepSeekAI(Star):
         elif hasattr(event, "source") and hasattr(event.source, "message_id"):
             return event.source.message_id
         return None
+
+    def _is_at_me(self, event: AiocqhttpMessageEvent) -> bool:
+        """检测是否 @ 了机器人"""
+        raw = getattr(event, "message_str", "") or ""
+        if "[CQ:at" in raw:
+            return True
+        # 检查昵称
+        if "萌物" in raw:
+            return True
+        return False
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
@@ -56,10 +70,26 @@ class DeepSeekAI(Star):
         if not user_message:
             return
 
-        if not any(w in user_message for w in self.trigger_words):
+        user_id = getattr(event, "user_id", None)
+        now = time.time()
+
+        # 判断触发条件：关键词 / @机器人 / 最近 5 秒内触发过
+        should_reply = False
+        if any(w in user_message for w in self.trigger_words):
+            should_reply = True
+        elif self._is_at_me(event):
+            should_reply = True
+        elif user_id in self.last_active and now - self.last_active[user_id] <= 5:
+            should_reply = True
+
+        if not should_reply:
             return
 
-        logger.info(f"[DeepSeek] 命中关键词，调用 API 处理中...")
+        # 更新最后活跃时间
+        if user_id:
+            self.last_active[user_id] = now
+
+        logger.info(f"[DeepSeek] 触发条件满足，调用 API 处理中...")
 
         msg_id = self._get_message_id(event)
 
@@ -83,7 +113,6 @@ class DeepSeekAI(Star):
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
             if msg_id:
-                # 直接发CQ码引用
                 yield event.plain_result(f"[CQ:reply,id={msg_id}]{reply_text}")
             else:
                 yield event.plain_result(reply_text)
