@@ -4,16 +4,8 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-# === 硬编码 DeepSeek 配置 ===
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_API_KEY = "sk-710a5dff40774cc79882ce6e3e204e4c"
-DEEPSEEK_MODEL = "deepseek-chat"
-
 # === 关键词列表 ===
 TRIGGER_WORDS = ["难过", "开心", "无聊", "失眠", "难受"]
-
-# 初始化客户端
-client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
 
 
 @register(
@@ -22,12 +14,19 @@ client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
     version="1.0.0"
 )
 class DeepSeekAI(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config):
         super().__init__(context)
         self.context = context
+        self.config = config
+
+        self.base_url = self.config.get("base_url", "https://api.deepseek.com")
+        self.api_key = self.config.get("api_key", "")
+        self.model = self.config.get("model", "deepseek-chat")
         self.trigger_words = TRIGGER_WORDS
-        self.model = DEEPSEEK_MODEL
-        self.logger.info(f"[DeepSeek] 插件已初始化，BaseURL: {DEEPSEEK_BASE_URL}，Model: {self.model}")
+
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+        self.logger.info(f"[DeepSeek] 插件已初始化，BaseURL: {self.base_url}，Model: {self.model}")
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
@@ -44,7 +43,7 @@ class DeepSeekAI(Star):
             self.logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
             # 调用 DeepSeek API
-            response = client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是一个温暖治愈的聊天伙伴"},
