@@ -5,6 +5,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.message.builder import Plain  # ✅ 用 Plain 防止 chain 报错
 
 
 @register(
@@ -19,7 +20,7 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        # 配置
+        # 配置（请把 api_key 改成你自己的 DeepSeek API Key）
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
@@ -31,7 +32,7 @@ class DeepSeekAI(Star):
         self.timeout = int(self.config.get("timeout", 20))
         self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
-        # DeepSeek API 客户端
+        # ✅ 初始化 DeepSeek API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
@@ -46,7 +47,7 @@ class DeepSeekAI(Star):
 
         user_message = (event.message_str or "").strip()
 
-        # 发送者昵称
+        # 获取发送者昵称
         sender_name = None
         if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
@@ -63,7 +64,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            # 调用 API
+            # 调用 DeepSeek API
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -75,12 +76,10 @@ class DeepSeekAI(Star):
             )
 
             # 解析回复
-            reply_text = None
             try:
                 reply_text = response.choices[0].message.content
             except AttributeError:
-                choice = response.choices[0]
-                reply_text = getattr(choice, "text", str(choice))
+                reply_text = getattr(response.choices[0], "text", str(response.choices[0]))
 
             reply_text = (reply_text or "").strip()
             if not reply_text:
@@ -88,14 +87,12 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 直接发送纯文本
-            await event.send(reply_text)
-            event.mark_handled()
+            # ✅ 用 Plain 发消息，避免 .chain 报错
+            await event.send(Plain(reply_text))
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
-                await event.send(f"[DeepSeek] 调用失败: {e}")
-                event.mark_handled()
+                await event.send(Plain(f"[DeepSeek] 调用失败: {e}"))
             except:
                 pass
