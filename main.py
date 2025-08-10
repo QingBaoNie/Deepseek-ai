@@ -9,7 +9,7 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.1.0"
+    "v1.1.1"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
@@ -49,7 +49,14 @@ class DeepSeekPlugin(Star):
             return
 
         text = event.message_str.strip()
-        if event.is_at_me() or any(kw in text for kw in self.trigger_keywords):
+
+        # 检查是否 @ 了 bot（兼容 OneBot v11）
+        is_at_bot = any(
+            m.type == "at" and str(m.data.get("qq")) == str(event.self_id)
+            for m in event.message_obj
+        )
+
+        if is_at_bot or any(kw in text for kw in self.trigger_keywords):
             reply = await self.get_deepseek_reply(text)
             if reply:
                 yield event.plain_result(reply)
