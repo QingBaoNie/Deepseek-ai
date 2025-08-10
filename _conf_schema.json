@@ -6,16 +6,22 @@
     "default": true
   },
   "api_url": {
-    "description": "DeepSeek API 接口地址",
+    "description": "DeepSeek API 基础地址",
     "type": "string",
-    "hint": "一般保持默认即可，除非你有自建代理地址",
-    "default": "https://api.deepseek.com/v1/chat/completions"
+    "hint": "默认使用官方地址 https://api.deepseek.com，也可填自建代理地址",
+    "default": "https://api.deepseek.com"
   },
   "api_key": {
     "description": "DeepSeek API 的访问密钥",
     "type": "string",
     "hint": "在 DeepSeek 平台申请的 API Key",
     "default": ""
+  },
+  "model": {
+    "description": "DeepSeek 模型选择",
+    "type": "string",
+    "hint": "可选值：deepseek-chat（对话模型），deepseek-reasoner（推理模型）",
+    "default": "deepseek-chat"
   },
   "persona": {
     "description": "人格设定",
