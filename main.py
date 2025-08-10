@@ -19,9 +19,9 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        # 配置
+        # 配置（可写死 API Key）
         self.enabled = self.config.get("enabled", True)
-        self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")  # 建议用 /v1
+        self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")  # 建议加 /v1
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
@@ -41,12 +41,13 @@ class DeepSeekAI(Star):
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
+        """群聊关键词触发被动回复"""
         if not self.enabled:
             return
 
         user_message = (event.message_str or "").strip()
 
-        # 发送者昵称
+        # 获取发送者昵称（兼容不同来源）
         sender_name = None
         if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
@@ -63,6 +64,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
+            # 调用 API（放到线程防止阻塞异步）
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -73,24 +75,26 @@ class DeepSeekAI(Star):
                 stream=False
             )
 
-            # 解析回复
-            reply_text = None
-            try:
-                reply_text = response.choices[0].message.content
-            except AttributeError:
+            # 兼容解析不同返回格式
+            reply_text = ""
+            if hasattr(response, "choices") and response.choices:
                 choice = response.choices[0]
-                reply_text = getattr(choice, "text", str(choice))
+                if hasattr(choice, "message") and choice.message:
+                    if isinstance(choice.message, dict):
+                        reply_text = choice.message.get("content", "")
+                    else:
+                        reply_text = getattr(choice.message, "content", "")
+                elif hasattr(choice, "text"):
+                    reply_text = choice.text
+                else:
+                    reply_text = str(choice)
 
-            # 清理空格
             reply_text = (reply_text or "").strip()
-
             if not reply_text:
                 reply_text = "（DeepSeek 没有返回内容）"
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
-
-            # 确保以纯文本方式发送
-            await event.send(f"{reply_text}")
+            await event.send(reply_text)
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
