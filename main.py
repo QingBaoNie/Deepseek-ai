@@ -6,14 +6,13 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-import astrbot.api.message_components as Comp
 
 
 @register(
     "deepseek_chat",
     "Qing",
-    "1.0.6",
-    "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动引用回复"
+    "1.0.7",
+    "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发引用回复（CQ码方式）"
 )
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
@@ -40,20 +39,12 @@ class DeepSeekAI(Star):
         """
         兼容不同版本 AstrBot / CQHTTP 的 message_id 获取
         """
-        for attr_path in [
-            "message_id",
-            "message.message_id",
-            "source.message_id",
-            "raw_event.message_id"
-        ]:
-            try:
-                obj = event
-                for part in attr_path.split("."):
-                    obj = getattr(obj, part)
-                if obj:
-                    return int(obj) if str(obj).isdigit() else obj
-            except AttributeError:
-                continue
+        if hasattr(event, "raw_event") and "message_id" in event.raw_event:
+            return event.raw_event["message_id"]
+        elif hasattr(event, "message") and hasattr(event.message, "message_id"):
+            return event.message.message_id
+        elif hasattr(event, "source") and hasattr(event.source, "message_id"):
+            return event.source.message_id
         return None
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
@@ -92,19 +83,14 @@ class DeepSeekAI(Star):
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
             if msg_id:
-                yield event.chain_result([
-                    Comp.Reply(msg_id),
-                    Comp.Plain(reply_text)
-                ])
+                # 直接发CQ码引用
+                yield event.plain_result(f"[CQ:reply,id={msg_id}]{reply_text}")
             else:
-                yield event.chain_result([Comp.Plain(reply_text)])
+                yield event.plain_result(reply_text)
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             if msg_id:
-                yield event.chain_result([
-                    Comp.Reply(msg_id),
-                    Comp.Plain(f"[DeepSeek] 调用失败: {e}")
-                ])
+                yield event.plain_result(f"[CQ:reply,id={msg_id}][DeepSeek] 调用失败: {e}")
             else:
                 yield event.plain_result(f"[DeepSeek] 调用失败: {e}")
