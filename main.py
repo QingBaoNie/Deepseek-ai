@@ -9,15 +9,16 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.1.2"
+    "v1.2.0"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
+        # 基础 API 地址（不带 /v1/chat/completions）
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
-        self.model = config.get("model", "deepseek-chat")
+        self.model = config.get("model", "deepseek-chat")  # 模型选择
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
@@ -28,7 +29,7 @@ class DeepSeekPlugin(Star):
 
     @filter.command("chat")
     async def chat_command(self, event: AstrMessageEvent):
-        """手动命令触发 DeepSeek 对话"""
+        """与 DeepSeek 对话"""
         if not self.enabled:
             yield event.plain_result("❌ DeepSeek 对话功能已关闭")
             return
@@ -43,33 +44,29 @@ class DeepSeekPlugin(Star):
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AstrMessageEvent):
-        """群聊内关键词或被@触发的对话"""
+        """群聊内被动对话（只响应关键词或被@）"""
         if not self.enabled:
             return
 
         text = event.message_str.strip()
 
-        # 检查是否 @ 了 bot（兼容 OneBot v11 / AstrBot）
+        # 检查是否 @ 了 bot（OneBot v11 格式）
         is_at_bot = any(
-            seg.type == "at" and str(seg.data.get("qq")) == str(event.self_id)
-            for seg in getattr(event.message_obj, "segments", [])
+            getattr(m, "type", "") == "at" and str(getattr(m, "data", {}).get("qq")) == str(event.self_id)
+            for m in event.message_obj.__root__  # 兼容 message_obj
         )
 
-        # 查找命中的关键词
+        # 匹配关键词
         matched_keyword = next((kw for kw in self.trigger_keywords if kw in text), None)
 
         if is_at_bot or matched_keyword:
-            event.prevent_default()  # 阻止消息进入 AstrBot 默认 LLM 管道
-            if matched_keyword:
-                logger.info(f"[DeepSeek] 触发关键词: {matched_keyword}")
-                yield event.plain_result(f"[DeepSeek] 关键词触发：{matched_keyword}")
-            elif is_at_bot:
-                logger.info("[DeepSeek] 检测到被@触发")
+            trigger_reason = "被 @ 触发" if is_at_bot else f"关键词触发：{matched_keyword}"
+            logger.info(f"[DeepSeek] {trigger_reason} - 来自 {event.user_id}({event.user_name})")
+            yield event.plain_result(f"[DeepSeek] {trigger_reason}")
 
             reply = await self.get_deepseek_reply(text)
             if reply:
                 yield event.plain_result(reply)
-
 
     async def get_deepseek_reply(self, user_input: str) -> str:
         """调用 DeepSeek API 获取回复"""
