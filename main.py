@@ -9,7 +9,7 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
     "deepseek_chat",
     "YourName",
     "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.2.0"
+    "v1.2.1"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
@@ -18,7 +18,7 @@ class DeepSeekPlugin(Star):
         # 基础 API 地址（不带 /v1/chat/completions）
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
-        self.model = config.get("model", "deepseek-chat")  # 模型选择
+        self.model = config.get("model", "deepseek-chat")
         self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
@@ -50,10 +50,10 @@ class DeepSeekPlugin(Star):
 
         text = event.message_str.strip()
 
-        # 检查是否 @ 了 bot（OneBot v11 格式）
+        # 检查是否 @ 了 bot（OneBot v11 消息段）
         is_at_bot = any(
-            getattr(m, "type", "") == "at" and str(getattr(m, "data", {}).get("qq")) == str(event.self_id)
-            for m in event.message_obj.__root__  # 兼容 message_obj
+            seg.type == "at" and str(seg.data.get("qq")) == str(event.self_id)
+            for seg in getattr(event.message_obj, "segments", [])
         )
 
         # 匹配关键词
@@ -61,8 +61,9 @@ class DeepSeekPlugin(Star):
 
         if is_at_bot or matched_keyword:
             trigger_reason = "被 @ 触发" if is_at_bot else f"关键词触发：{matched_keyword}"
-            logger.info(f"[DeepSeek] {trigger_reason} - 来自 {event.user_id}({event.user_name})")
-            yield event.plain_result(f"[DeepSeek] {trigger_reason}")
+            trigger_info = f"[DeepSeek] {trigger_reason}（来自 {event.user_name}）"
+            logger.info(f"{trigger_info} - UID: {event.user_id}")
+            yield event.plain_result(trigger_info)
 
             reply = await self.get_deepseek_reply(text)
             if reply:
