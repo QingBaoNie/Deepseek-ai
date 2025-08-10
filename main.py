@@ -62,10 +62,14 @@ class DeepSeekPlugin(Star):
             event.prevent_default()  # 阻止消息进入 AstrBot 默认 LLM 管道
             if matched_keyword:
                 logger.info(f"[DeepSeek] 触发关键词: {matched_keyword}")
+                yield event.plain_result(f"[DeepSeek] 关键词触发：{matched_keyword}")
+            elif is_at_bot:
+                logger.info("[DeepSeek] 检测到被@触发")
 
             reply = await self.get_deepseek_reply(text)
             if reply:
                 yield event.plain_result(reply)
+
 
     async def get_deepseek_reply(self, user_input: str) -> str:
         """调用 DeepSeek API 获取回复"""
