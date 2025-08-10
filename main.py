@@ -1,4 +1,5 @@
 import asyncio
+import json
 from openai import OpenAI
 from astrbot import logger
 from astrbot.api.star import Context, Star, register
@@ -19,7 +20,6 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        # 配置
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
@@ -31,13 +31,10 @@ class DeepSeekAI(Star):
         self.timeout = int(self.config.get("timeout", 20))
         self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
-        # DeepSeek API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
-        logger.info(
-            f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}"
-        )
+        logger.info(f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}")
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
@@ -46,7 +43,6 @@ class DeepSeekAI(Star):
 
         user_message = (event.message_str or "").strip()
 
-        # 发送者昵称
         sender_name = None
         if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
@@ -55,7 +51,6 @@ class DeepSeekAI(Star):
         if not sender_name:
             sender_name = "未知用户"
 
-        # 检查关键词
         hit_words = [w for w in self.trigger_words if w in user_message]
         if not hit_words:
             return
@@ -63,7 +58,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            response = await asyncio.to_thread(
+            raw_response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
                 messages=[
@@ -73,13 +68,19 @@ class DeepSeekAI(Star):
                 stream=False
             )
 
-            # 解析回复
+            # 兼容 AstrBot hook 返回 str 的情况
+            if isinstance(raw_response, str):
+                raw_response = json.loads(raw_response)
+
             reply_text = None
-            try:
-                reply_text = response.choices[0].message.content
-            except AttributeError:
-                choice = response.choices[0]
-                reply_text = getattr(choice, "text", str(choice))
+            if isinstance(raw_response, dict):
+                reply_text = raw_response.get("choices", [{}])[0].get("message", {}).get("content")
+            else:
+                try:
+                    reply_text = raw_response.choices[0].message.content
+                except AttributeError:
+                    choice = raw_response.choices[0]
+                    reply_text = getattr(choice, "text", str(choice))
 
             reply_text = (reply_text or "").strip()
             if not reply_text:
@@ -87,7 +88,6 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 发送并标记已处理，防止被 LLM 阶段截住
             await event.send(reply_text)
             event.mark_handled()
 
