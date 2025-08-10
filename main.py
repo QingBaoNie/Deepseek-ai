@@ -1,5 +1,6 @@
 import asyncio
 from openai import OpenAI
+from astrbot import logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
@@ -21,7 +22,7 @@ class DeepSeekAI(Star):
         # 读取配置（如果要直接写死 API Key 可以在这里改）
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com")
-        self.api_key = self.config.get("api_key", "sk-710a5dff40774cc79882ce6e3e204e4c")
+        self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
             "persona",
@@ -35,7 +36,7 @@ class DeepSeekAI(Star):
 
     async def initialize(self):
         """插件初始化"""
-        self.context.logger.info(
+        logger.info(
             f"[DeepSeek] 插件已加载 | BaseURL: {self.base_url} | Model: {self.model} | 关键词: {self.trigger_words}"
         )
 
@@ -53,7 +54,7 @@ class DeepSeekAI(Star):
         if not hit_words:
             return
 
-        self.context.logger.info(
+        logger.info(
             f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API"
         )
 
@@ -70,11 +71,11 @@ class DeepSeekAI(Star):
             )
 
             reply_text = response.choices[0].message.content
-            self.context.logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+            logger.info(f"[DeepSeek] 回复内容: {reply_text}")
             await event.send(reply_text)
 
         except Exception as e:
-            self.context.logger.error(f"[DeepSeek] 调用 API 失败: {e}")
+            logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
                 await event.send(f"[DeepSeek] 调用失败: {e}")
             except:
