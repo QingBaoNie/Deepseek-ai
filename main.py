@@ -12,7 +12,7 @@ import astrbot.api.message_components as Comp
 @register(
     "deepseek_chat",
     "Qing",
-    "1.0.4",
+    "1.0.5",
     "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动引用回复"
 )
 class DeepSeekAI(Star):
@@ -45,14 +45,12 @@ class DeepSeekAI(Star):
         if not user_message:
             return
 
-        # 检查关键词触发
         if not any(w in user_message for w in self.trigger_words):
             return
 
         logger.info(f"[DeepSeek] 命中关键词，调用 API 处理中...")
 
         try:
-            # 调用 DeepSeek API
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -71,15 +69,25 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 发送引用 + 回复
+            # 关键：转换 message_id 为 int，确保 CQHTTP 能引用
+            try:
+                msg_id = int(event.message_id)
+            except ValueError:
+                msg_id = event.message_id  # 如果无法转换，直接传原值
+
             yield event.chain_result([
-                Comp.Reply(event.message_id),  # 引用用户消息
-                Comp.Plain(reply_text)         # 回复内容
+                Comp.Reply(msg_id),
+                Comp.Plain(reply_text)
             ])
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
+            try:
+                msg_id = int(event.message_id)
+            except ValueError:
+                msg_id = event.message_id
+
             yield event.chain_result([
-                Comp.Reply(event.message_id),
+                Comp.Reply(msg_id),
                 Comp.Plain(f"[DeepSeek] 调用失败: {e}")
             ])
