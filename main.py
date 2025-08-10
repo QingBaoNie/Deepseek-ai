@@ -6,11 +6,12 @@ from astrbot.core.star.filter.event_message_type import EventMessageType
 from openai import OpenAI
 
 @register(
-    name="deepseek_chat",
-    author="YourName",
-    description="DeepSeek 对话插件（可设定人格，支持主动回复）",
-    version="1.0.1"
+    "deepseek_chat",
+    "YourName",
+    "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
+    "v1.1.1"
 )
+
 class DeepSeekChat(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
