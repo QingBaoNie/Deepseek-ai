@@ -6,7 +6,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 
 
 @register(
-    "deepseek_chat",  # 这里和 metadata.yaml 保持一致
+    "deepseek_chat",  # 和 metadata.yaml 保持一致
     "Qing",
     "1.0.0",
     "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
@@ -31,7 +31,7 @@ class DeepSeekAI(Star):
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def on_load(self):
-        # 用 context.logger，确保 logger 可用
+        # 确保 logger 可用后再输出
         self.context.logger.info(
             f"[DeepSeek] 插件已初始化，BaseURL: {self.base_url}，Model: {self.model}，关键词: {self.trigger_words}"
         )
