@@ -19,19 +19,21 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        # 配置（这里直接写死 API Key 方便测试）
+        # 配置
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com")
-        self.api_key = self.config.get("api_key", "sk-710a5dff40774cc79882ce6e3e204e4c")
+        self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
             "persona",
             "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
         )
         self.timeout = int(self.config.get("timeout", 20))
-        self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
+        self.trigger_words = self.config.get(
+            "trigger_keywords", ["机器人", "帮我", "难过"]
+        )
 
-        # 初始化 API 客户端
+        # DeepSeek API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
@@ -42,24 +44,29 @@ class DeepSeekAI(Star):
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
-        """被动监听群消息并触发关键词回复"""
+        """群聊关键词触发被动回复"""
         if not self.enabled:
             return
 
-        user_message = event.message_str.strip()
-        sender_name = event.raw_event.get("sender", {}).get("nickname") or str(event.user_id)
+        # 消息文本
+        user_message = (event.message_str or "").strip()
+
+        # 取发送者昵称（兼容处理）
+        sender_name = None
+        if hasattr(event, "sender") and event.sender:
+            sender_name = getattr(event.sender, "nickname", None)
+        if not sender_name:
+            sender_name = str(getattr(event, "user_id", "未知用户"))
 
         # 检查关键词
         hit_words = [w for w in self.trigger_words if w in user_message]
         if not hit_words:
             return
 
-        self.context.logger.info(
-            f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API"
-        )
+        logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            # 在线程池中执行防止阻塞
+            # 调用 API（放到线程防止阻塞）
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -71,11 +78,11 @@ class DeepSeekAI(Star):
             )
 
             reply_text = response.choices[0].message.content
-            self.context.logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+            logger.info(f"[DeepSeek] 回复内容: {reply_text}")
             await event.send(reply_text)
 
         except Exception as e:
-            self.context.logger.error(f"[DeepSeek] 调用 API 失败: {e}")
+            logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
                 await event.send(f"[DeepSeek] 调用失败: {e}")
             except:
