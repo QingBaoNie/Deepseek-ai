@@ -5,7 +5,12 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 
 
-@register("deepseek_chat", "YourName", "DeepSeek 对话插件（可设定人格，支持主动回复）", "1.0.0")
+@register(
+    "deepseek_chat",  # 插件唯一识别名
+    "YourName",  # 作者
+    "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",  # 插件简短描述
+    "v1.0.0"  # 插件版本
+)
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
