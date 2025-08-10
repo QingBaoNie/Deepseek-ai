@@ -1,98 +1,59 @@
-import aiohttp
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot import logger
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
-from astrbot.core.star.filter.event_message_type import EventMessageType
-
+from astrbot.api.event import filter
+from astrbot.core.star.filter.event_message_type import event_message_type, EventMessageType
+from openai import OpenAI
 
 @register(
-    "deepseek_chat",
-    "YourName",
-    "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
-    "v1.2.2"
+    name="deepseek_chat",
+    author="YourName",
+    description="DeepSeek 对话插件（可设定人格，支持主动回复）",
+    version="1.0.0"
 )
-class DeepSeekPlugin(Star):
+class DeepSeekChat(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.config = config
+        self.enabled = config.get("enabled", True)
         self.api_url = config.get("api_url", "https://api.deepseek.com")
         self.api_key = config.get("api_key", "")
         self.model = config.get("model", "deepseek-chat")
-        self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
+        self.persona = config.get("persona", "你是一个温柔的暖心机器人")
         self.timeout = config.get("timeout", 15)
-        self.enabled = config.get("enabled", True)
-        self.trigger_keywords = config.get("trigger_keywords", ["机器人", "帮我", "难过"])
+        self.trigger_keywords = config.get("trigger_keywords", [])
 
-    async def initialize(self):
-        logger.info("[DeepSeek] 插件已初始化")
+        # 初始化 DeepSeek 客户端
+        self.client = OpenAI(api_key=self.api_key, base_url=self.api_url)
 
-    @filter.command("chat")
-    async def chat_command(self, event: AstrMessageEvent):
-        if not self.enabled:
-            yield event.plain_result("❌ DeepSeek 对话功能已关闭")
-            return
-        user_input = event.message_str.strip()
-        if not user_input:
-            yield event.plain_result("请输入内容，例如：/chat 今天天气怎么样？")
-            return
-        reply = await self.get_deepseek_reply(user_input)
-        yield event.plain_result(reply or "⚠️ 对话失败，请稍后再试")
+        masked_key = self.api_key[:8] + "****" + self.api_key[-4:] if self.api_key else "未设置"
+        logger.info(f"[DeepSeek] 插件已初始化，BaseURL: {self.api_url}，Model: {self.model}，API Key: {masked_key}")
 
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
-    async def passive_reply(self, event: AstrMessageEvent):
+    @event_message_type(EventMessageType.GROUP_MESSAGE)
+    async def passive_reply(self, event):
         if not self.enabled:
             return
 
-        text = event.message_str.strip()
-        # OneBot v11 消息段遍历
-        segments = getattr(event.message_obj, "segments", [])
-        is_at_bot = any(
-            seg.type == "at" and str(seg.data.get("qq")) == str(event.self_id)
-            for seg in segments
-        )
-        matched_keyword = next((kw for kw in self.trigger_keywords if kw in text), None)
+        text = str(event.message_obj)  # 获取消息文本
+        if not any(keyword in text for keyword in self.trigger_keywords):
+            return  # 没有触发关键词
 
-        if is_at_bot or matched_keyword:
-            trigger_reason = "被 @ 触发" if is_at_bot else f"关键词触发：{matched_keyword}"
-            trigger_info = f"[DeepSeek] {trigger_reason}（来自 {event.user_name}）"
-            logger.info(f"{trigger_info} - UID: {event.user_id}")
-            yield event.plain_result(trigger_info)
-
-            reply = await self.get_deepseek_reply(text)
-            if reply:
-                yield event.plain_result(reply)
-
-    async def get_deepseek_reply(self, user_input: str) -> str:
-        endpoint = f"{self.api_url.rstrip('/')}/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": self.persona},
-                {"role": "user", "content": user_input}
-            ],
-            "stream": False
-        }
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
-                async with session.post(endpoint, headers=headers, json=payload) as resp:
-                    data = await resp.json()
-                    if resp.status == 401:
-                        logger.error("[DeepSeek] API Key 无效，请检查配置")
-                        return "⚠️ API Key 无效，请检查插件配置"
-                    if resp.status != 200:
-                        logger.error(f"[DeepSeek] API 错误 {resp.status}: {data}")
-                        return ""
-                    if "choices" in data and data["choices"]:
-                        return data["choices"][0]["message"]["content"].strip()
-                    logger.error(f"[DeepSeek] API 响应异常: {data}")
-                    return ""
-        except Exception as e:
-            logger.error(f"[DeepSeek] API 调用失败: {e}")
-            return ""
+            logger.info(f"[DeepSeek] 收到触发关键词消息: {text}")
 
-    async def terminate(self):
-        logger.info("[DeepSeek] 插件已卸载")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.persona},
+                    {"role": "user", "content": text}
+                ],
+                timeout=self.timeout
+            )
+
+            reply_text = response.choices[0].message.content
+            logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+
+            await event.reply(reply_text)
+
+        except Exception as e:
+            logger.error(f"[DeepSeek] 调用 API 失败: {e}")
+            await event.reply(f"[DeepSeek] 调用失败: {e}")
