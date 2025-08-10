@@ -1,24 +1,76 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+import aiohttp
+import asyncio
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+
+@register("deepseek_chat", "YourName", "DeepSeek 对话插件（可设定人格，支持主动回复）", "1.0.0")
+class DeepSeekPlugin(Star):
+    def __init__(self, context: Context, config):
         super().__init__(context)
+        self.config = config
+        self.api_url = config.get("api_url", "https://api.deepseek.com/v1/chat/completions")
+        self.api_key = config.get("api_key", "")
+        self.persona = config.get("persona", "你是一个温柔的暖心机器人")
+        self.timeout = config.get("timeout", 15)
+        self.enabled = config.get("enabled", True)
 
     async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+        logger.info("[DeepSeek] 插件已初始化")
     
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+    @filter.command("chat")
+    async def chat_command(self, event: AstrMessageEvent):
+        """与 DeepSeek 对话"""
+        if not self.enabled:
+            yield event.plain_result("❌ DeepSeek 对话功能已关闭")
+            return
+        
+        user_input = event.message_str.strip()
+        if not user_input:
+            yield event.plain_result("请输入内容，例如：/chat 今天天气怎么样？")
+            return
+
+        reply = await self.get_deepseek_reply(user_input)
+        if reply:
+            yield event.plain_result(reply)
+        else:
+            yield event.plain_result("⚠️ 对话失败，请稍后再试")
+
+    @filter.event_message_type("group_message")  # 群聊内的被动回复
+    async def passive_reply(self, event: AstrMessageEvent):
+        """在群里触发被动对话"""
+        if not self.enabled:
+            return
+
+        text = event.message_str.strip()
+        # 简单触发条件：被 @ 或包含关键字
+        if event.is_at_me() or "机器人" in text:
+            reply = await self.get_deepseek_reply(text)
+            if reply:
+                yield event.plain_result(reply)
+
+    async def get_deepseek_reply(self, user_input: str) -> str:
+        """调用 DeepSeek API 获取回复"""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {"role": "system", "content": self.persona},
+                {"role": "user", "content": user_input}
+            ]
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
+                async with session.post(self.api_url, headers=headers, json=payload) as resp:
+                    data = await resp.json()
+                    return data["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.error(f"[DeepSeek] API 调用失败: {e}")
+            return ""
 
     async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        logger.info("[DeepSeek] 插件已卸载")
