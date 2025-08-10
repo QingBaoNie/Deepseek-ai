@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "api_url": "https://api.deepseek.com/v1/chat/completions",
+  "api_key": "你的API密钥",
+  "persona": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人",
+  "timeout": 15
+}
