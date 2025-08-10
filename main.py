@@ -21,7 +21,7 @@ class DeepSeekAI(Star):
 
         # 配置
         self.enabled = self.config.get("enabled", True)
-        self.base_url = self.config.get("api_url", "https://api.deepseek.com")
+        self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")  # 建议用 /v1
         self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
@@ -31,7 +31,7 @@ class DeepSeekAI(Star):
         self.timeout = int(self.config.get("timeout", 20))
         self.trigger_words = self.config.get("trigger_keywords", ["机器人", "帮我", "难过"])
 
-        # 初始化 DeepSeek API 客户端
+        # DeepSeek API 客户端
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def initialize(self):
@@ -46,9 +46,9 @@ class DeepSeekAI(Star):
 
         user_message = (event.message_str or "").strip()
 
-        # 获取昵称
+        # 发送者昵称
         sender_name = None
-        if hasattr(event, "sender") and getattr(event.sender, None):
+        if hasattr(event, "sender") and getattr(event, "sender", None):
             sender_name = getattr(event.sender, "nickname", None)
         if not sender_name and hasattr(event, "user_id"):
             sender_name = str(event.user_id)
@@ -73,21 +73,26 @@ class DeepSeekAI(Star):
                 stream=False
             )
 
-            # 解析返回
+            # 解析回复
             reply_text = None
-            if hasattr(response.choices[0], "message"):
+            try:
                 reply_text = response.choices[0].message.content
-            elif hasattr(response.choices[0], "text"):
-                reply_text = response.choices[0].text
-            else:
-                reply_text = str(response.choices[0])
+            except AttributeError:
+                choice = response.choices[0]
+                reply_text = getattr(choice, "text", str(choice))
 
-            if reply_text:
-                logger.info(f"[DeepSeek] 回复内容: {reply_text}")
-                await event.send(reply_text)
+            # 清理空格
+            reply_text = (reply_text or "").strip()
+
+            if not reply_text:
+                reply_text = "（DeepSeek 没有返回内容）"
+
+            logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+
+            # 确保以纯文本方式发送
+            await event.send(f"{reply_text}")
 
         except Exception as e:
-            # API 或网络出错才会进这里
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
                 await event.send(f"[DeepSeek] 调用失败: {e}")
