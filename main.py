@@ -4,14 +4,12 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-# === 关键词列表 ===
-TRIGGER_WORDS = ["难过", "开心", "无聊", "失眠", "难受"]
 
 @register(
-    name="deepseek_ai",
-    author="Qing",
-    version="1.0.0",
-    desc="对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
+    "deepseek_ai",
+    "Qing",
+    "1.0.0",
+    "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
 )
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
@@ -19,17 +17,29 @@ class DeepSeekAI(Star):
         self.context = context
         self.config = config
 
-        self.base_url = self.config.get("base_url", "https://api.deepseek.com")
+        # 从配置文件读取
+        self.enabled = self.config.get("enabled", True)
+        self.base_url = self.config.get("api_url", "https://api.deepseek.com")
         self.api_key = self.config.get("api_key", "")
         self.model = self.config.get("model", "deepseek-chat")
-        self.trigger_words = TRIGGER_WORDS
+        self.persona = self.config.get(
+            "persona",
+            "你是一个温柔、贴心并且会主动安慰用户的AI助手，聊天时语气友好，回答简洁"
+        )
+        self.timeout = int(self.config.get("timeout", 20))
+        self.trigger_words = self.config.get("trigger_keywords", [])
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
-        self.logger.info(f"[DeepSeek] 插件已初始化，BaseURL: {self.base_url}，Model: {self.model}")
+        self.logger.info(
+            f"[DeepSeek] 插件已初始化，BaseURL: {self.base_url}，Model: {self.model}，关键词: {self.trigger_words}"
+        )
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
+        if not self.enabled:
+            return
+
         try:
             user_message = event.message_str.strip()
             sender_name = event.sender.nickname or str(event.sender.user_id)
@@ -46,7 +56,7 @@ class DeepSeekAI(Star):
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "你是一个温暖治愈的聊天伙伴"},
+                    {"role": "system", "content": self.persona},
                     {"role": "user", "content": user_message}
                 ],
                 stream=False
