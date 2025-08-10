@@ -4,20 +4,19 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
+
 @register(
-    "deepseek_chat",  # 改成和 metadata.yaml 的 name 一样
+    "deepseek_chat",  # 这里和 metadata.yaml 保持一致
     "Qing",
     "1.0.0",
     "对接 DeepSeek API 的聊天插件，支持设定人格和关键词触发主动回复"
 )
-
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
         super().__init__(context)
         self.context = context
         self.config = config
 
-        # 从配置文件读取
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com")
         self.api_key = self.config.get("api_key", "")
@@ -31,7 +30,9 @@ class DeepSeekAI(Star):
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
-        self.logger.info(
+    async def on_load(self):
+        # 用 context.logger，确保 logger 可用
+        self.context.logger.info(
             f"[DeepSeek] 插件已初始化，BaseURL: {self.base_url}，Model: {self.model}，关键词: {self.trigger_words}"
         )
 
@@ -44,15 +45,14 @@ class DeepSeekAI(Star):
             user_message = event.message_str.strip()
             sender_name = event.sender.nickname or str(event.sender.user_id)
 
-            # 检测关键词
             hit_words = [w for w in self.trigger_words if w in user_message]
             if not hit_words:
                 return
 
-            # 日志输出
-            self.logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
+            self.context.logger.info(
+                f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API"
+            )
 
-            # 调用 DeepSeek API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -63,13 +63,12 @@ class DeepSeekAI(Star):
             )
 
             reply_text = response.choices[0].message.content
-            self.logger.info(f"[DeepSeek] 回复内容: {reply_text}")
+            self.context.logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 发送回复
             await event.send(reply_text)
 
         except Exception as e:
-            self.logger.error(f"[DeepSeek] 调用 API 失败: {e}")
+            self.context.logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
                 await event.send(f"[DeepSeek] 调用失败: {e}")
             except:
