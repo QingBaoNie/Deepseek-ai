@@ -1,4 +1,4 @@
-name: deepseek_ai
+name: deepseek_chat
 desc: 对接 DeepSeek API 的聊天插件，支持设定人格和主动回复
 version: v1.0.0
 author: YourName
