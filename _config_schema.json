@@ -1,7 +1,16 @@
 {
   "enabled": true,
+  "enabled:description": "是否启用 DeepSeek 对话插件（true 开启，false 关闭）",
+
   "api_url": "https://api.deepseek.com/v1/chat/completions",
+  "api_url:description": "DeepSeek API 接口地址",
+
   "api_key": "你的API密钥",
+  "api_key:description": "DeepSeek API 的访问密钥",
+
   "persona": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人",
-  "timeout": 15
+  "persona:description": "人格设定，会作为 system 提示词传入 DeepSeek",
+
+  "timeout": 15,
+  "timeout:description": "API 调用的超时时间（秒）"
 }
