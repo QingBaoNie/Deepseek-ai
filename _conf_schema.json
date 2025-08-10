@@ -1,32 +1,38 @@
 {
   "enabled": {
+    "description": "是否启用 DeepSeek 对话插件",
     "type": "bool",
-    "default": true,
-    "description": "是否启用 DeepSeek 对话插件（true 开启，false 关闭）"
+    "hint": "关闭后插件不会响应任何指令或消息",
+    "default": true
   },
   "api_url": {
+    "description": "DeepSeek API 接口地址",
     "type": "string",
-    "default": "https://api.deepseek.com/v1/chat/completions",
-    "description": "DeepSeek API 接口地址"
+    "hint": "一般保持默认即可，除非你有自建代理地址",
+    "default": "https://api.deepseek.com/v1/chat/completions"
   },
   "api_key": {
+    "description": "DeepSeek API 的访问密钥",
     "type": "string",
-    "default": "",
-    "description": "DeepSeek API 的访问密钥"
+    "hint": "在 DeepSeek 平台申请的 API Key",
+    "default": ""
   },
   "persona": {
+    "description": "人格设定",
     "type": "string",
-    "default": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人",
-    "description": "人格设定，会作为 system 提示词传入 DeepSeek"
+    "hint": "会作为 system 提示词传入 DeepSeek，例如“你是一个温柔的暖心机器人”",
+    "default": "你是一个温柔的暖心机器人，会在聊天中主动安慰别人"
   },
   "timeout": {
+    "description": "API 调用的超时时间（秒）",
     "type": "int",
-    "default": 15,
-    "description": "API 调用的超时时间（秒）"
+    "hint": "请求超时时间，建议 10~30 秒",
+    "default": 15
   },
   "trigger_keywords": {
+    "description": "群聊触发关键词列表",
     "type": "list",
-    "default": ["机器人", "帮我", "难过"],
-    "description": "群聊触发关键词列表"
+    "hint": "当消息中包含任意关键词时触发自动回复",
+    "default": ["机器人", "帮我", "难过"]
   }
 }
