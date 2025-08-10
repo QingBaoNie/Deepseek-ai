@@ -12,8 +12,8 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 @register(
     "deepseek_chat",
     "Qing",
-    "1.1.0",
-    "对接 DeepSeek API 的聊天插件，支持关键词、@触发和 5 秒跟进对话"
+    "1.1.1",
+    "对接 DeepSeek API 的聊天插件，支持关键词、@触发和 5 秒跟进对话（自动刷新）"
 )
 class DeepSeekAI(Star):
     def __init__(self, context: Context, config):
@@ -38,7 +38,7 @@ class DeepSeekAI(Star):
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
-        # 记录最近触发用户的时间
+        # 记录最近触发用户的过期时间戳（秒）
         self.last_active: Dict[int, float] = {}
 
     def _get_message_id(self, event: AiocqhttpMessageEvent):
@@ -56,10 +56,8 @@ class DeepSeekAI(Star):
         raw = getattr(event, "message_str", "") or ""
         if "[CQ:at" in raw:
             return True
-        # 检查昵称
-        if "萌物" in raw:
-            return True
-        return False
+        # 精确匹配名字（避免误触发）
+        return raw.strip() == "萌物"
 
     @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
     async def passive_reply(self, event: AiocqhttpMessageEvent):
@@ -73,21 +71,21 @@ class DeepSeekAI(Star):
         user_id = getattr(event, "user_id", None)
         now = time.time()
 
-        # 判断触发条件：关键词 / @机器人 / 最近 5 秒内触发过
+        # 判断触发条件
         should_reply = False
         if any(w in user_message for w in self.trigger_words):
             should_reply = True
         elif self._is_at_me(event):
             should_reply = True
-        elif user_id in self.last_active and now - self.last_active[user_id] <= 5:
+        elif user_id in self.last_active and now <= self.last_active[user_id]:
             should_reply = True
 
         if not should_reply:
             return
 
-        # 更新最后活跃时间
+        # 刷新活跃时间为 5 秒后
         if user_id:
-            self.last_active[user_id] = now
+            self.last_active[user_id] = now + 5
 
         logger.info(f"[DeepSeek] 触发条件满足，调用 API 处理中...")
 
