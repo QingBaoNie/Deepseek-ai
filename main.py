@@ -6,10 +6,10 @@ from astrbot.api import logger
 
 
 @register(
-    "deepseek_chat",  # 插件唯一识别名
-    "YourName",  # 作者
-    "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",  # 插件简短描述
-    "v1.0.0"  # 插件版本
+    "deepseek_chat",
+    "YourName",
+    "对接 DeepSeek API 的聊天插件，支持设定人格和主动回复",
+    "v1.0.0"
 )
 class DeepSeekPlugin(Star):
     def __init__(self, context: Context, config):
@@ -17,9 +17,10 @@ class DeepSeekPlugin(Star):
         self.config = config
         self.api_url = config.get("api_url", "https://api.deepseek.com/v1/chat/completions")
         self.api_key = config.get("api_key", "")
-        self.persona = config.get("persona", "你是一个温柔的暖心机器人")
+        self.persona = config.get("persona", "你是一个温柔的暖心机器人，会在聊天中主动安慰别人")
         self.timeout = config.get("timeout", 15)
         self.enabled = config.get("enabled", True)
+
 
     async def initialize(self):
         logger.info("[DeepSeek] 插件已初始化")
