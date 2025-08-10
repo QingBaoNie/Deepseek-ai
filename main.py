@@ -23,7 +23,7 @@ class DeepSeekAI(Star):
         # 配置（请把 api_key 改成你自己的 DeepSeek API Key）
         self.enabled = self.config.get("enabled", True)
         self.base_url = self.config.get("api_url", "https://api.deepseek.com/v1")
-        self.api_key = self.config.get("api_key", "sk-xxxxxxxxxxxxxxxx")
+        self.api_key = self.config.get("api_key", "sk-710a5dff40774cc79882ce6e3e204e4c")
         self.model = self.config.get("model", "deepseek-chat")
         self.persona = self.config.get(
             "persona",
