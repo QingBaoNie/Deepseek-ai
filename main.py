@@ -5,8 +5,6 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from astrbot.core.message.chain import MessageChain
-from astrbot.core.message.text import Plain
 
 
 @register(
@@ -65,7 +63,7 @@ class DeepSeekAI(Star):
         logger.info(f"[DeepSeek] 检测到命中词: {hit_words} 来自: {sender_name} 正在提交API")
 
         try:
-            # 调用 API（线程防阻塞）
+            # 调用 API
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
@@ -90,16 +88,14 @@ class DeepSeekAI(Star):
 
             logger.info(f"[DeepSeek] 回复内容: {reply_text}")
 
-            # 用 MessageChain 发送，避免 'str' object has no attribute 'chain' 错误
-            chain = MessageChain().append(Plain(reply_text))
-            await event.send(chain)
+            # 直接发送纯文本
+            await event.send(reply_text)
             event.mark_handled()
 
         except Exception as e:
             logger.error(f"[DeepSeek] 调用 API 失败: {e}")
             try:
-                chain = MessageChain().append(Plain(f"[DeepSeek] 调用失败: {e}"))
-                await event.send(chain)
+                await event.send(f"[DeepSeek] 调用失败: {e}")
                 event.mark_handled()
             except:
                 pass
