@@ -46,8 +46,7 @@ async def passive_reply(self, event: AiocqhttpMessageEvent):
         return
 
     user_message = event.message_str.strip()
-    sender_info = await event.get_sender()  # 获取发送者信息
-    sender_name = sender_info.get("nickname") or str(event.user_id)
+    sender_name = event.raw_event.get("sender", {}).get("nickname") or str(event.user_id)
 
     # 检查关键词
     hit_words = [w for w in self.trigger_words if w in user_message]
@@ -59,7 +58,6 @@ async def passive_reply(self, event: AiocqhttpMessageEvent):
     )
 
     try:
-        # 调用 API
         response = await asyncio.to_thread(
             self.client.chat.completions.create,
             model=self.model,
